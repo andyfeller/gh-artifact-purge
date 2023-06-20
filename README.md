@@ -53,7 +53,7 @@ andyfeller/too-new:  skipping 758779777
     Workflow:
         Name:  Generated scan workflow
         ID:    48463692
-        PATH:  .github/workflows/whatever.yml
+        Path:  .github/workflows/whatever.yml
         State: active
 andyfeller/too-new:  skipping 758779776
     Name:    equally_nonsensical
@@ -65,7 +65,7 @@ andyfeller/too-new:  skipping 758779776
     Workflow:
         Name:  Generated scan workflow
         ID:    48463692
-        PATH:  .github/workflows/whatever.yml
+        Path:  .github/workflows/whatever.yml
         State: active
 andyfeller/codeql-action-testing--spree--spree:  processing
 andyfeller/codeql-action-testing--spree--spree:  nominating 732080845
@@ -78,7 +78,7 @@ andyfeller/codeql-action-testing--spree--spree:  nominating 732080845
     Workflow:
         Name:  demo
         ID:    59281797
-        PATH:  .github/workflows/release.yml
+        Path:  .github/workflows/release.yml
         State: active
 ```
 

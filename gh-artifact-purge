@@ -82,7 +82,7 @@ process_repo() {
 			    Workflow:
 			        Name:  $WORKFLOW_NAME
 			        ID:    $WORKFLOW_ID
-			        PATH:  $WORKFLOW_PATH
+			        Path:  $WORKFLOW_PATH
 			        State: $WORKFLOW_STATE
 			EOF
 		}
