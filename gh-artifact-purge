@@ -25,76 +25,98 @@ die() {
 process_repo() {
 
 	NWO="$1"
+	PAGE=1
 
-	printf "%s:  processing\n" $NWO
+	while true; do
+		artifacts_data=$(gh api "/repos/$NWO/actions/artifacts" -X GET -F page=$PAGE -F per_page=100 --jq '. | @base64')
 
-	for data in $(gh api "/repos/$NWO/actions/artifacts" --jq '.artifacts[] | @base64'); do
-
-		# Extract actions artifact information
-		artifact() {
-			echo -n $data | base64 --decode | jq -r "${1}"
+		artifacts() {
+			echo -n $artifacts_data | base64 --decode | jq -r "${1}"
 		}
 
-		ID=$(artifact '.id')
-		NAME=$(artifact '.name')
-		CREATED=$(artifact '.created_at')
-		SIZE_BYTES=$(artifact '.size_in_bytes')
-		WORKFLOW_RUN_ID=$(artifact '.workflow_run.id')
-		EXPIRES=$(artifact '.expires_at')
-
-		# Convert dates for easier comparison, calculate new expiration date
-		CREATED_SECS=$(date -j -f '%Y-%m-%dT%H:%M:%SZ' "$CREATED" '+%s')
-		EXPIRES_SECS=$(date -j -f '%Y-%m-%dT%H:%M:%SZ' "$EXPIRES" '+%s')
-		AMENDED=$(date -j -f '%Y-%m-%dT%H:%M:%SZ' -v"+${RETENTION}d" "$CREATED" '+%Y-%m-%dT%H:%M:%SZ')
-		AMENDED_SECS=$(date -j -f '%Y-%m-%dT%H:%M:%SZ' -v"+${RETENTION}d" "$CREATED" '+%s')
-
-		# Lookup workflow run information
-		WORKFLOW_RUN_DATA=$(gh api "/repos/$NWO/actions/runs/$WORKFLOW_RUN_ID" --jq '. | @base64')
-
-		workflow_run() {
-			echo -n $WORKFLOW_RUN_DATA | base64 --decode | jq -r "${1}"
-		}
-
-		WORKFLOW_ID=$(workflow_run '.workflow_id')
-
-		# Lookup workflow information related to workflow run
-		WORKFLOW_DATA=$(gh api "/repos/$NWO/actions/workflows/$WORKFLOW_ID" --jq '. | @base64')
-
-		workflow() {
-			echo -n $WORKFLOW_DATA | base64 --decode | jq -r "${1}"
-		}
-
-		WORKFLOW_NAME=$(workflow '.name')
-		WORKFLOW_PATH=$(workflow '.path')
-		WORKFLOW_STATE=$(workflow '.state')
-
-		artifact_status() {
-			ACTION="$1"
-
-			cat <<-EOF
-			$NWO:  $ACTION $ID
-			    Name:    $NAME
-			    ID:      $ID
-			    Size:    $SIZE_BYTES bytes
-			    Created: $CREATED  ($CREATED_SECS seconds)
-			    Amended: $AMENDED  ($AMENDED_SECS seconds)
-			    Expires: $EXPIRES  ($EXPIRES_SECS seconds)
-			    Workflow:
-			        Name:  $WORKFLOW_NAME
-			        ID:    $WORKFLOW_ID
-			        Path:  $WORKFLOW_PATH
-			        State: $WORKFLOW_STATE
-			EOF
-		}
-
-		if [ $AMENDED_SECS -gt $NOW_SECS ]; then
-			artifact_status 'skipping'  # Artifact amended expiration in future
-		elif $RUN; then
-			artifact_status 'deleting'  # Artifact amended expiration in past and in run mode
-			# gh api -X DELETE "/repos/$NWO/actions/artifacts/$ID"
-		else
-			artifact_status 'nominating'  # Artifact amended expiration in past and in dryrun mode
+		if [ "$(artifacts '.artifacts | length')" == "0" ]; then
+			break;
 		fi
+
+		if [ $PAGE -eq 1 ]; then
+			printf "%s:  processing %'d artifacts\n" $NWO $(artifacts '.total_count')
+		fi
+
+		for data in $(artifacts '.artifacts[] | @base64'); do
+
+			# Extract actions artifact information
+			artifact() {
+				echo -n $data | base64 --decode | jq -r "${1}"
+			}
+
+			ID=$(artifact '.id')
+			NAME=$(artifact '.name')
+			CREATED=$(artifact '.created_at')
+			SIZE_BYTES=$(artifact '.size_in_bytes')
+			WORKFLOW_RUN_ID=$(artifact '.workflow_run.id')
+			EXPIRES=$(artifact '.expires_at')
+			EXPIRED=$(artifact '.expired')
+
+			# Convert dates for easier comparison, calculate new expiration date
+			CREATED_SECS=$(date -j -f '%Y-%m-%dT%H:%M:%SZ' "$CREATED" '+%s')
+			EXPIRES_SECS=$(date -j -f '%Y-%m-%dT%H:%M:%SZ' "$EXPIRES" '+%s')
+			AMENDED=$(date -j -f '%Y-%m-%dT%H:%M:%SZ' -v"+${RETENTION}d" "$CREATED" '+%Y-%m-%dT%H:%M:%SZ')
+			AMENDED_SECS=$(date -j -f '%Y-%m-%dT%H:%M:%SZ' -v"+${RETENTION}d" "$CREATED" '+%s')
+
+			# Lookup workflow run information
+			WORKFLOW_RUN_DATA=$(gh api "/repos/$NWO/actions/runs/$WORKFLOW_RUN_ID" --jq '. | @base64')
+
+			workflow_run() {
+				echo -n $WORKFLOW_RUN_DATA | base64 --decode | jq -r "${1}"
+			}
+
+			WORKFLOW_ID=$(workflow_run '.workflow_id')
+
+			# Lookup workflow information related to workflow run
+			WORKFLOW_DATA=$(gh api "/repos/$NWO/actions/workflows/$WORKFLOW_ID" --jq '. | @base64')
+
+			workflow() {
+				echo -n $WORKFLOW_DATA | base64 --decode | jq -r "${1}"
+			}
+
+			WORKFLOW_NAME=$(workflow '.name')
+			WORKFLOW_PATH=$(workflow '.path')
+			WORKFLOW_STATE=$(workflow '.state')
+
+			# Evaluate artifact and take action
+			artifact_status() {
+				ACTION="$1"
+
+				cat <<-EOF
+				$NWO:  $ACTION $ID
+				    Name:      $NAME
+				    ID:        $ID
+				    Size:      $SIZE_BYTES bytes
+				    Created:   $CREATED  ($CREATED_SECS seconds)
+				    Amended:   $AMENDED  ($AMENDED_SECS seconds)
+				    Expires:   $EXPIRES  ($EXPIRES_SECS seconds)
+				    Expired:   $EXPIRED
+				    Workflow:
+				        Name:  $WORKFLOW_NAME
+				        ID:    $WORKFLOW_ID
+				        Path:  $WORKFLOW_PATH
+				        State: $WORKFLOW_STATE
+				EOF
+			}
+
+			if [ $EXPIRED == "true" ]; then
+				artifact_status 'skipping (expired)'
+			elif [ $AMENDED_SECS -gt $NOW_SECS ]; then
+				artifact_status 'skipping (within retention)'  # Artifact amended expiration in future
+			elif $RUN; then
+				artifact_status 'deleting'  # Artifact amended expiration in past and in run mode
+				gh api -X DELETE "/repos/$NWO/actions/artifacts/$ID"
+			else
+				artifact_status 'nominating'  # Artifact amended expiration in past and in dryrun mode
+			fi
+		done
+
+		(( ++PAGE ))  # Increment next page to pull
 	done
 }
 
@@ -154,9 +176,36 @@ else
 	OWNER="$1"
 	RETENTION="$2"
 
-	printf "%s:  processing\n" $OWNER
+	QUERY='
+		query ($owner: String!, $endCursor: String) {
+		  repositoryOwner(login: $owner) {
+		    repositories(first: 100, after: $endCursor) {
+		      totalCount
+		    }
+		  }
+		}
+	'
 
-	for nwo in $(gh repo list "$OWNER" --json nameWithOwner --jq '.[].nameWithOwner'); do
+	TOTAL=$(gh api graphql -f query="${QUERY}" -F owner="$OWNER" --jq '.data.repositoryOwner.repositories.totalCount')
+	printf "%s:  processing %'d repositories\n" $OWNER $TOTAL
+
+	QUERY='
+		query ($owner: String!, $endCursor: String) {
+		  repositoryOwner(login: $owner) {
+		    repositories(first: 100, after: $endCursor) {
+		      pageInfo {
+		        endCursor
+		        hasNextPage
+		      }
+		      nodes {
+		        nameWithOwner
+		      }
+		    }
+		  }
+		}
+	'
+
+	for nwo in $(gh api graphql -f query="${QUERY}" -F owner="$OWNER" --paginate --jq '.data.repositoryOwner.repositories.nodes[].nameWithOwner'); do
 		process_repo $nwo $RETENTION
 	done
 fi
