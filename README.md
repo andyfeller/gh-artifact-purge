@@ -32,9 +32,9 @@ FLAGS
 
 There are 3 potential actions for GitHub Actions artifacts discovered depending on its created date and new retention policy provided:
 
-- `skipping`: the artifact is ineligible for deletion as its created date is new enough
-- `nominating`: the artifact is eligible for deletion as its created date is old enough but not deleted without `-r,--run` flag
-- `deleting`: the artifact is eligible for deletion as its created date is old enough and `-r,--run` flag provided
+- `skipping`: ineligible for deletion, created date is new enough
+- `nominating`: eligible for deletion, created date is old enough but not deleted without `-r,--run` flag
+- `deleting`: eligible for deletion, created date is old enough and `-r,--run` flag provided
 
 Example of extension output:
 
