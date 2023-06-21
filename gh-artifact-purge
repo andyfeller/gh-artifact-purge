@@ -27,8 +27,18 @@ process_repo() {
 	NWO="$1"
 	PAGE=1
 
+	printf "%s:  processing\n" $NWO
+
 	while true; do
+		set +e
 		artifacts_data=$(gh api "/repos/$NWO/actions/artifacts" -X GET -F page=$PAGE -F per_page=100 --jq '. | @base64')
+		artifacts_error=$?
+		set -e
+
+		if [ "${artifacts_error}" -ne 0 ]; then
+			printf "%s:  erred (retrieving artifacts)\n" $NWO
+			break;
+		fi
 
 		artifacts() {
 			echo -n $artifacts_data | base64 --decode | jq -r "${1}"
