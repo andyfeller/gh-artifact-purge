@@ -68,10 +68,17 @@ process_repo() {
 			EXPIRED=$(artifact '.expired')
 
 			# Convert dates for easier comparison, calculate new expiration date
-			CREATED_SECS=$(date -j -f '%Y-%m-%dT%H:%M:%SZ' "$CREATED" '+%s')
-			EXPIRES_SECS=$(date -j -f '%Y-%m-%dT%H:%M:%SZ' "$EXPIRES" '+%s')
-			AMENDED=$(date -j -f '%Y-%m-%dT%H:%M:%SZ' -v"+${RETENTION}d" "$CREATED" '+%Y-%m-%dT%H:%M:%SZ')
-			AMENDED_SECS=$(date -j -f '%Y-%m-%dT%H:%M:%SZ' -v"+${RETENTION}d" "$CREATED" '+%s')
+			if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+				CREATED_SECS=$(date -d "$CREATED" '+%s')
+				EXPIRES_SECS=$(date -d "$EXPIRES" '+%s')
+				AMENDED=$(date -d "${CREATED} +${RETENTION} days" '+%Y-%m-%dT%H:%M:%SZ')
+				AMENDED_SECS=$(date -d "$AMENDED" '+%s')
+			elif [[ "$OSTYPE" == "darwin"* ]]; then
+				CREATED_SECS=$(date -j -f '%Y-%m-%dT%H:%M:%SZ' "$CREATED" '+%s')
+				EXPIRES_SECS=$(date -j -f '%Y-%m-%dT%H:%M:%SZ' "$EXPIRES" '+%s')
+				AMENDED=$(date -j -f '%Y-%m-%dT%H:%M:%SZ' -v"+${RETENTION}d" "$CREATED" '+%Y-%m-%dT%H:%M:%SZ')
+				AMENDED_SECS=$(date -j -f '%Y-%m-%dT%H:%M:%SZ' "$AMENDED" '+%s')
+			fi
 
 			# Lookup workflow run information
 			WORKFLOW_RUN_DATA=$(gh api "/repos/$NWO/actions/runs/$WORKFLOW_RUN_ID" --jq '. | @base64')
@@ -172,8 +179,14 @@ if test "$#" -lt 2; then
 fi
 
 # Capture timestamp for evaluation purposes
-NOW=$(date -j '+%Y-%m-%dT%H:%M:%SZ')
-NOW_SECS=$(date -j -f '%Y-%m-%dT%H:%M:%SZ' "$NOW" '+%s')
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+	NOW=$(date '+%Y-%m-%dT%H:%M:%SZ')
+	NOW_SECS=$(date -d "$NOW" '+%s')
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+	NOW=$(date -j '+%Y-%m-%dT%H:%M:%SZ')
+	NOW_SECS=$(date -j -f '%Y-%m-%dT%H:%M:%SZ' "$NOW" '+%s')
+fi
+
 printf "Evaluating artifacts against %s (%s seconds)\n" $NOW $NOW_SECS
 
 # Process owner or owner/repo appropriately
