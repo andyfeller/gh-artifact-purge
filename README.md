@@ -30,11 +30,15 @@ FLAGS
   -r, --run                            Apply changes; defaults to dryrun
 ```
 
-There are 3 potential actions for GitHub Actions artifacts discovered depending on its created date and new retention policy provided:
+### How does it work
 
-- `skipping`: ineligible for deletion, created date is new enough
-- `nominating`: eligible for deletion, created date is old enough but not deleted without `-r,--run` flag
-- `deleting`: eligible for deletion, created date is old enough and `-r,--run` flag provided
+`gh-artifact-purge` evaluates GitHub Actions artifacts by calculating an `Amended` expiration date based on the original `Created` date and the new retention setting.
+
+There are 3 actions taken depending on the amended expiration:
+
+1. `skipping` is when the amended expiration is in the future, resulting in no changes
+2. `nominating` is when the amended expiration is in the past but the `-r,--run` flag is missing, resulting in no changes
+3. `deleting` is when the amended expiration is in the past and `-r,--run` flag is provided, resulting in the artifact being deleted
 
 Example of extension output:
 
