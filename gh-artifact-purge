@@ -31,7 +31,7 @@ process_repo() {
 
 	while true; do
 		set +e
-		artifacts_data=$(gh api "/repos/$NWO/actions/artifacts" -X GET -F page=$PAGE -F per_page=100 --jq '. | @base64')
+		artifacts_data=$(gh api "repos/$NWO/actions/artifacts" -X GET -F page=$PAGE -F per_page=100 --jq '. | @base64')
 		artifacts_error=$?
 		set -e
 
@@ -81,7 +81,7 @@ process_repo() {
 			fi
 
 			# Lookup workflow run information
-			WORKFLOW_RUN_DATA=$(gh api "/repos/$NWO/actions/runs/$WORKFLOW_RUN_ID" --jq '. | @base64')
+			WORKFLOW_RUN_DATA=$(gh api "repos/$NWO/actions/runs/$WORKFLOW_RUN_ID" --jq '. | @base64')
 
 			workflow_run() {
 				echo -n $WORKFLOW_RUN_DATA | base64 --decode | jq -r "${1}"
@@ -90,7 +90,7 @@ process_repo() {
 			WORKFLOW_ID=$(workflow_run '.workflow_id')
 
 			# Lookup workflow information related to workflow run
-			WORKFLOW_DATA=$(gh api "/repos/$NWO/actions/workflows/$WORKFLOW_ID" --jq '. | @base64')
+			WORKFLOW_DATA=$(gh api "repos/$NWO/actions/workflows/$WORKFLOW_ID" --jq '. | @base64')
 
 			workflow() {
 				echo -n $WORKFLOW_DATA | base64 --decode | jq -r "${1}"
@@ -127,7 +127,7 @@ process_repo() {
 				artifact_status 'skipping (within retention)'  # Artifact amended expiration in future
 			elif $RUN; then
 				artifact_status 'deleting'  # Artifact amended expiration in past and in run mode
-				gh api -X DELETE "/repos/$NWO/actions/artifacts/$ID"
+				gh api -X DELETE "repos/$NWO/actions/artifacts/$ID"
 			else
 				artifact_status 'nominating'  # Artifact amended expiration in past and in dryrun mode
 			fi
