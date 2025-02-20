@@ -2,6 +2,7 @@
 set -e
 
 RUN=false
+PURGE_EXPIRED=false
 
 __USAGE="
 List and delete GitHub Actions artifacts based on new retention policy.
@@ -14,6 +15,7 @@ FLAGS
   -d, --debug                          Enable debugging
   -h, --help                           Displays help usage
   -r, --run                            Apply changes; defaults to dryrun
+  -e, --expired                        Purge expired artifacts; defaults to skip
 ";
 
 die() {
@@ -122,7 +124,16 @@ process_repo() {
 			}
 
 			if [ $EXPIRED == "true" ]; then
-				artifact_status 'skipping (expired)'
+				if $PURGE_EXPIRED; then
+					if $RUN; then
+						artifact_status 'deleting'  # Artifact expired and in run mode
+						gh api -X DELETE "repos/$NWO/actions/artifacts/$ID"
+					else
+						artifact_status 'nominating'  # Artifact amended expiration in past and in dryrun mode
+					fi
+				else
+					artifact_status 'skipping (expired)'
+				fi
 			elif [ $AMENDED_SECS -gt $NOW_SECS ]; then
 				artifact_status 'skipping (within retention)'  # Artifact amended expiration in future
 			elif $RUN; then
@@ -138,7 +149,7 @@ process_repo() {
 }
 
 # Process command line flags
-while getopts "dhr-:" OPT; do
+while getopts "dhre-:" OPT; do
 	if [ "$OPT" = "-" ]; then    # long option: reformulate OPT and OPTARG
 		OPT="${OPTARG%%=*}"      # extract long option name
 		OPTARG="${OPTARG#$OPT}"	 # extract long option argument (may be empty)
@@ -158,6 +169,10 @@ while getopts "dhr-:" OPT; do
 
 		run | r)
 			RUN=true
+			;;
+
+		expired | e)
+			PURGE_EXPIRED=true
 			;;
 	esac
 done
