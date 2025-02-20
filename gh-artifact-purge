@@ -126,10 +126,10 @@ process_repo() {
 			if [ $EXPIRED == "true" ]; then
 				if $PURGE_EXPIRED; then
 					if $RUN; then
-						artifact_status 'deleting'  # Artifact expired and in run mode
+						artifact_status 'deleting (expired)'  # Artifact expired and in run mode
 						gh api -X DELETE "repos/$NWO/actions/artifacts/$ID"
 					else
-						artifact_status 'nominating'  # Artifact amended expiration in past and in dryrun mode
+						artifact_status 'nominating (expired)'  # Artifact amended expiration in past and in dryrun mode
 					fi
 				else
 					artifact_status 'skipping (expired)'
