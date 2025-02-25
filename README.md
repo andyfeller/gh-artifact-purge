@@ -28,6 +28,7 @@ FLAGS
   -d, --debug                          Enable debugging
   -h, --help                           Displays help usage
   -r, --run                            Apply changes; defaults to dryrun
+  -p, --purge-expired                  Purge expired artifacts; defaults to skip
 ```
 
 ### How does it work
